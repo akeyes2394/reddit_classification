@@ -1,0 +1,26 @@
+# Executive Summary
+
+Data Science Question: Can we classify Reddit posts from the subreddits r/AskMen and r/AskWomen to their respective threads based on the Title and Body of the post?
+
+## Data Collection and Wrangling
+
+ask_men_url = https://www.reddit.com/r/askmen
+ask_women_url = https://www.reddit.com/r/askwomen
+
+I used the [PushShift API](https://github.com/pushshift/api) in order to scrape Reddit posts from the two threads I was looking to classify.  This allowed me to get up to 500 posts at once in a JSON format that I then had to loop through and save features into a dataframe.  With this API you set your parameters for the Reddit page you want to scrape, the number of posts you want (max 500) and the date range for those posts.  
+
+I wanted to look at both a post's title and body text in order to classify which thread it belonged to, but when looking at the posts I had scraped I noticed that a lot of them showed up with a blank string in the body text, or [removed] or [deleted].  I chose to exclude these posts and get more posts that did have body text in order to feed as much text into the models I would later create.  I also chose to not look at comments, as I made the assumption that the comments would be much more likely to run off topic from the thread that the post was in.  
+
+After familiarizing myself with the JSON format that I was receiving, I created a function to scrape and clean the posts (drop bodyless posts) into a dataframe format all at once.  I then created another function that would run the first function continuously with a while loop until the number of posts I had reached a certain threshold.  Once I had the number of posts I wanted, I did the same for the second thread and concatinated the two resulting dataframes together to create my complete dataset of posts.  Once I began modeling I would come back to this function and alter the threshold for posts in order to improve the models I made and decrease their variance.  You can see all the csv files I saved in the repo.  
+
+## NLP and Modeling
+
+During the language processing portion I used tokens and lemmatizing to only capture words I thought were relevant.  I created regular expression tokens that grabbed only words and ignored white space characters and punctuation.  I chose to also include full numbers, as well as contraction words.  
+
+I tried both CountVectorizer and the TFIDF Vectorizer to create features to be used in the models.  I found that the TFIDF Vectorizer performed better for all the models I created (scored on accuracy).  The two models I chose to explore were a basic Logistic Regression, and a Random Forrest.  At first glance without any tuning the Logistic Regression looked to more accurately classify the Reddit posts with a cross validation accuracy score of .75.  Lemmatizing words did not show any significant imporovement on the models and actually caused the accuracy scores to drop slightly in all cases.  
+
+Additionally each of the model's that I created were very overfit at first, and the Random Forest models were espcially overfit with accuracy scores as high as 98-99% on the training sets that would drop significantly on the testing sets.  In order to combat this, without doing any tuning yet, I went back and scraped much more data that I could feed into the model.  I started out with just 2,000 posts in total (1000 from each subreddit) and I ended up increasing that number to 50,000 posts in total (25,000) from each subreddit.  This large increase in data caused the processing time for the models to increase exponentially as the features increased as well.  However the variance or overfittedness of the untuned models improved a lot, with the best model showing a training score of .82 and a cross validated score of .75 (much better than the score drops from my first models that showed drops of .2 - .3 in accuracy).  
+
+Grid searching through this dataset took an extremely long time, especially when tuning the random forest model as there are so many hyperparameters to be adjusted.  After tuning the models, the Logistic Regression with an L2 penalty, and a 'C' value of 1, returned an accuracty score of .755 (essentially the same as without tuning).  On the other hand the Random Forest model with 100 trees, no max depth, and max features set to sqrt, returned an accuracty score of .74 which imporved a fair bit (almost 5%) from the base model.  
+
+In the end I chose to go with this Random Forest model, because although the Logistic Regression may score slightly better, and be less overfit, there are certain assumptions made by Logistic Regression that are likely violated in this dataset.  Mainly independence of observations, and independence of independent variables.  Since the posts in this case study were scraped consecutively, it is likely that certain observations or posts are related to one another as people may be affected by certain factors at the same time, such as world events, or time of year.  Additionally, the features in this dataset are also likely related as we are looking at individual words which by nature are related to other words and therefore features within that post.  
